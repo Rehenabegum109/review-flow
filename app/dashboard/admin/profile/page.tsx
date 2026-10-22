@@ -10,7 +10,6 @@ import {
   RefreshCw,
   ShieldCheck,
   UserRound,
-  Users,
 } from "lucide-react";
 import api from "@/lib/axios";
 
@@ -29,18 +28,61 @@ type ProfileApiResponse = {
   message?: string;
 };
 
+type ApiError = {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+  message?: string;
+};
+
 function formatDate(value?: string) {
   if (!value) return "Not available";
 
   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) return "Not available";
+  if (Number.isNaN(date.getTime())) {
+    return "Not available";
+  }
 
   return date.toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "long",
     year: "numeric",
   });
+}
+
+function getErrorMessage(err: unknown) {
+  const apiError = err as ApiError;
+
+  return (
+    apiError.response?.data?.message ||
+    apiError.message ||
+    "Unable to load your profile. Please try again."
+  );
+}
+
+function getAdminProfile(
+  result: ProfileApiResponse,
+): AdminProfile | null {
+  const nestedData = result.data;
+
+  let user: AdminProfile | undefined;
+
+  if (result.user) {
+    user = result.user;
+  } else if (nestedData && "user" in nestedData) {
+    user = nestedData.user;
+  } else {
+    user = nestedData as AdminProfile | undefined;
+  }
+
+  if (!user?.id || !user.email) {
+    return null;
+  }
+
+  return user;
 }
 
 export default function AdminProfilePage() {
@@ -54,48 +96,57 @@ export default function AdminProfilePage() {
 
     try {
       const response = await api.get<ProfileApiResponse>("/auth/me");
-      const result = response.data;
+      const user = getAdminProfile(response.data);
 
-      const nestedData = result.data;
-      const user =
-        result.user ??
-        (nestedData && "user" in nestedData
-          ? nestedData.user
-          : nestedData);
-
-      if (!user || !user.id || !user.email) {
-        throw new Error(
-          result.message || "Could not read your profile information.",
-        );
+      if (!user) {
+        throw new Error("Could not read your profile information.");
       }
 
       setProfile(user);
     } catch (err: unknown) {
-      const apiError = err as {
-        response?: { data?: { message?: string } };
-        message?: string;
-      };
-
-      setError(
-        apiError.response?.data?.message ||
-          apiError.message ||
-          "Unable to load your profile. Please try again.",
-      );
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void fetchProfile();
-  }, [fetchProfile]);
+    let cancelled = false;
 
-  const initial =
-    profile?.name?.trim().charAt(0).toUpperCase() || "A";
+    const loadProfile = async () => {
+      try {
+        const response = await api.get<ProfileApiResponse>("/auth/me");
+
+        if (cancelled) return;
+
+        const user = getAdminProfile(response.data);
+
+        if (!user) {
+          throw new Error("Could not read your profile information.");
+        }
+
+        setProfile(user);
+      } catch (err: unknown) {
+        if (cancelled) return;
+        setError(getErrorMessage(err));
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const initial = profile?.name?.trim().charAt(0).toUpperCase() || "A";
 
   return (
     <main className="mx-auto min-w-0 max-w-6xl space-y-6 pb-10">
-      {/* Page heading */}
       <header>
         <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 dark:border-violet-400/20 dark:bg-violet-500/10 dark:text-violet-300">
           <ShieldCheck size={14} />
@@ -127,7 +178,6 @@ export default function AdminProfilePage() {
         </div>
       </header>
 
-      {/* Loading state */}
       {loading && (
         <div className="space-y-5" aria-label="Loading profile">
           <div className="h-52 animate-pulse rounded-3xl bg-slate-200 dark:bg-white/[0.06]" />
@@ -138,7 +188,6 @@ export default function AdminProfilePage() {
         </div>
       )}
 
-      {/* Error state */}
       {!loading && error && (
         <section
           role="alert"
@@ -147,13 +196,16 @@ export default function AdminProfilePage() {
           <h2 className="font-semibold text-rose-700 dark:text-rose-300">
             Profile could not be loaded
           </h2>
+
           <p className="mt-2 break-words text-sm text-rose-600 dark:text-rose-300/80">
             {error}
           </p>
+
           <p className="mt-2 text-xs text-rose-600/80 dark:text-rose-300/70">
             Check that you are logged in and that the /auth/me endpoint
             returns the current user.
           </p>
+
           <button
             type="button"
             onClick={() => void fetchProfile()}
@@ -164,7 +216,6 @@ export default function AdminProfilePage() {
         </section>
       )}
 
-      {/* Profile content */}
       {!loading && !error && profile && (
         <>
           <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-violet-600 to-indigo-700 p-6 text-white shadow-xl shadow-violet-500/10 sm:p-9">
@@ -222,7 +273,6 @@ export default function AdminProfilePage() {
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
                     <UserRound size={21} />
                   </div>
-
                   <div className="min-w-0">
                     <p className="text-sm text-slate-500 dark:text-slate-400">
                       Full Name
@@ -239,7 +289,6 @@ export default function AdminProfilePage() {
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
                     <Mail size={21} />
                   </div>
-
                   <div className="min-w-0">
                     <p className="text-sm text-slate-500 dark:text-slate-400">
                       Email Address
@@ -256,7 +305,6 @@ export default function AdminProfilePage() {
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300">
                     <ShieldCheck size={21} />
                   </div>
-
                   <div className="min-w-0">
                     <p className="text-sm text-slate-500 dark:text-slate-400">
                       Account Role
@@ -276,7 +324,6 @@ export default function AdminProfilePage() {
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">
                     <CalendarDays size={21} />
                   </div>
-
                   <div className="min-w-0">
                     <p className="text-sm text-slate-500 dark:text-slate-400">
                       Member Since
@@ -295,7 +342,6 @@ export default function AdminProfilePage() {
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-violet-700 shadow-sm dark:bg-white/10 dark:text-violet-300">
                 <Clock3 size={20} />
               </div>
-
               <div>
                 <h3 className="font-semibold text-slate-900 dark:text-white">
                   Account Overview

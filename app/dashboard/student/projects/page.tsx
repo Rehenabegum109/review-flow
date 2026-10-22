@@ -1,13 +1,14 @@
+
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FolderKanban, Plus, RefreshCw } from "lucide-react";
+
 import api from "@/lib/axios";
 import { Submission } from "@/app/src/components/dashboard/student/submission-types";
 import SubmissionList from "@/app/src/components/dashboard/student/submission-list";
-
 
 export default function MyProjectsPage() {
   const router = useRouter();
@@ -46,8 +47,49 @@ export default function MyProjectsPage() {
   }, [router]);
 
   useEffect(() => {
-    void fetchProjects();
-  }, [fetchProjects]);
+    let cancelled = false;
+
+    async function loadProjects() {
+      try {
+        const authResponse = await api.get("/auth/me");
+        const user = authResponse.data?.data?.user;
+
+        if (cancelled) return;
+
+        if (!user) {
+          router.replace("/login");
+          return;
+        }
+
+        if (user.role !== "STUDENT") {
+          router.replace("/dashboard");
+          return;
+        }
+
+        const response = await api.get("/submissions/my");
+
+        if (cancelled) return;
+
+        const data = response.data?.data;
+        setProjects(Array.isArray(data) ? data : []);
+        setError("");
+      } catch {
+        if (cancelled) return;
+
+        setError("Could not load your projects. Please try again.");
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadProjects();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   return (
     <main className="space-y-6 p-4 sm:p-6 lg:p-8">
@@ -55,7 +97,9 @@ export default function MyProjectsPage() {
         <div>
           <div className="mb-2 flex items-center gap-2 text-violet-600 dark:text-violet-400">
             <FolderKanban size={20} />
-            <span className="text-sm font-medium">Student Workspace</span>
+            <span className="text-sm font-medium">
+              Student Workspace
+            </span>
           </div>
 
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">
@@ -82,6 +126,7 @@ export default function MyProjectsPage() {
             <h2 className="font-semibold text-gray-900 dark:text-white">
               Your Submissions
             </h2>
+
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {projects.length} project(s) submitted
             </p>
@@ -92,7 +137,7 @@ export default function MyProjectsPage() {
             onClick={() => void fetchProjects()}
             disabled={loading}
             aria-label="Refresh projects"
-            className="rounded-lg border border-gray-200 p-2 text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+            className="rounded-lg border border-gray-200 p-2 text-gray-600 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
           >
             <RefreshCw
               size={18}
@@ -104,10 +149,12 @@ export default function MyProjectsPage() {
         {error ? (
           <div className="py-8 text-center">
             <p className="text-sm text-red-500">{error}</p>
+
             <button
               type="button"
               onClick={() => void fetchProjects()}
-              className="mt-3 text-sm font-medium text-violet-600 hover:underline dark:text-violet-400"
+              disabled={loading}
+              className="mt-3 text-sm font-medium text-violet-600 hover:underline disabled:opacity-50 dark:text-violet-400"
             >
               Try again
             </button>
@@ -123,23 +170,32 @@ export default function MyProjectsPage() {
           </div>
         ) : projects.length === 0 ? (
           <div className="rounded-xl border border-dashed border-gray-300 px-5 py-12 text-center dark:border-gray-700">
-            <FolderKanban className="mx-auto text-violet-500" size={34} />
+            <FolderKanban
+              className="mx-auto text-violet-500"
+              size={34}
+            />
+
             <h3 className="mt-3 font-semibold text-gray-900 dark:text-white">
               No projects yet
             </h3>
+
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
               Submit your first project to get started.
             </p>
+
             <Link
               href="/dashboard/student/submission"
-              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700"
+              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-700"
             >
               <Plus size={16} />
               Submit Project
             </Link>
           </div>
         ) : (
-          <SubmissionList submissions={projects} />
+          <SubmissionList
+            submissions={projects}
+            loading={loading}
+          />
         )}
       </section>
     </main>
