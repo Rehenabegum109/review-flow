@@ -140,16 +140,20 @@ export default function StudentDashboardPage() {
       }
 
       // Replace these paths with the exact existing backend routes.
-      const requests = [
-        {
-          url: "/projects/my-projects",
-          setState: setProjects,
-        },
-        {
-          url: "/reviews/my-reviews",
-          setState: setReviews,
-        },
-      ];
+      // const requests = [
+      //   {
+      //     url: "/projects/my-projects",
+      //     setState: setProjects,
+      //   },
+      //   {
+      //     url: "/reviews/my-reviews",
+      //     setState: setReviews,
+      //   },
+      // ];
+  const requests = [
+  { url: "/submissions/my", setState: setProjects },
+  { url: "/reviews/my", setState: setReviews },
+];
 
       await Promise.all(
         requests.map(async ({ url, setState }) => {

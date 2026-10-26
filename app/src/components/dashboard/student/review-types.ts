@@ -1,15 +1,13 @@
 export type Review = {
   id: string;
-  status?: string;
-  score?: number | null;
-  rating?: number | null;
-  feedback?: string | null;
-  comment?: string | null;
+  status: "APPROVED" | "REJECTED" | "PENDING";
+  feedback: string;
   createdAt?: string;
-  project?: {
-    title?: string;
-  };
+  updatedAt?: string;
   submission?: {
-    title?: string;
+    id: string;
+    title: string;
+    status: string;
+    createdAt: string;
   };
 };
